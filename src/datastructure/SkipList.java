@@ -15,7 +15,7 @@ public class SkipList {
     static class SkipListNode {
         String val;
         double score;
-        SkipListNode prev;
+        SkipListNode backward;
         SkipListLevel[] levels;
 
         SkipListNode() {
@@ -37,7 +37,7 @@ public class SkipList {
 
     static class SkipListLevel {
         int span;
-        SkipListNode next;
+        SkipListNode forward;
     }
 
     public SkipList() {
@@ -47,27 +47,19 @@ public class SkipList {
         head.initLevels(MAX_LEVEL);
     }
 
-    private int randomLevel() {
-        int level = 1;
-        while (Math.random() < P && level < MAX_LEVEL) {
-            level++;
-        }
-        return level;
-    }
-
-    public SkipListNode add(String val, double score) {
+    public void add(String val, double score) {
         int[] rank = new int[MAX_LEVEL];
         SkipListNode[] update = new SkipListNode[MAX_LEVEL];
         SkipListNode x = head;
 
         for (int i = level - 1; i >= 0; i--) {
             rank[i] = i == level - 1 ? 0 : rank[i + 1];
-            while (x.levels[i].next != null
-                    && (x.levels[i].next.score < score
-                    || (x.levels[i].next.score == score && val.compareTo(x.levels[i].next.val) > 0))) {
+            while (x.levels[i].forward != null
+                    && (x.levels[i].forward.score < score
+                    || (x.levels[i].forward.score == score && val.compareTo(x.levels[i].forward.val) > 0))) {
 
                 rank[i] += x.levels[i].span;
-                x = x.levels[i].next;
+                x = x.levels[i].forward;
             }
 
             update[i] = x;
@@ -88,8 +80,8 @@ public class SkipList {
         }
 
         for (int i = 0; i < curLevel; i++) {
-            x.levels[i].next = update[i].levels[i].next;
-            update[i].levels[i].next = x;
+            x.levels[i].forward = update[i].levels[i].forward;
+            update[i].levels[i].forward = x;
 
             x.levels[i].span = update[i].levels[i].span - (rank[0] - rank[i]);
             update[i].levels[i].span = (rank[0] - rank[i]) + 1;
@@ -99,16 +91,14 @@ public class SkipList {
             update[i].levels[i].span++;
         }
 
-        x.prev = update[0] == head ? null : update[0];
-        if (x.levels[0].next != null) {
-            x.levels[0].next.prev = x;
+        x.backward = update[0] == head ? null : update[0];
+        if (x.levels[0].forward != null) {
+            x.levels[0].forward.backward = x;
         } else {
             tail = x;
         }
 
         length++;
-
-        return x;
     }
 
     public boolean remove(String val, double score) {
@@ -116,17 +106,17 @@ public class SkipList {
         SkipListNode x = head;
 
         for (int i = level - 1; i >= 0; i--) {
-            while (x.levels[i].next != null
-                    && (x.levels[i].next.score < score
-                    || (x.levels[i].next.score == score && val.compareTo(x.levels[i].next.val) > 0))) {
+            while (x.levels[i].forward != null
+                    && (x.levels[i].forward.score < score
+                    || (x.levels[i].forward.score == score && val.compareTo(x.levels[i].forward.val) > 0))) {
 
-                x = x.levels[i].next;
+                x = x.levels[i].forward;
             }
 
             update[i] = x;
         }
 
-        x = x.levels[0].next;
+        x = x.levels[0].forward;
 
         if (x != null && x.score == score && val.compareTo(x.val) == 0) {
             deleteNode(x, update);
@@ -136,23 +126,64 @@ public class SkipList {
         return false;
     }
 
+    public int getRank(String val, double score) {
+        int rank = 0;
+        SkipListNode x = head;
+
+        for (int i = level - 1; i >= 0; i--) {
+            while (x.levels[i].forward != null
+                    && (x.levels[i].forward.score < score
+                    || (x.levels[i].forward.score == score && val.compareTo(x.levels[i].forward.val) >= 0))) {
+
+                rank += x.levels[i].span;
+                x = x.levels[i].forward;
+            }
+
+            if (x.val != null && x.val.equals(val)) {
+                return rank;
+            }
+        }
+        return 0;
+    }
+
+    public boolean contains(String val, double score) {
+        SkipListNode x = head;
+
+        for (int i = level - 1; i >= 0; i--) {
+            while (x.levels[i].forward != null
+                    && (x.levels[i].forward.score < score
+                    || (x.levels[i].forward.score == score && val.compareTo(x.levels[i].forward.val) > 0))) {
+
+                x = x.levels[i].forward;
+            }
+        }
+
+        x = x.levels[0].forward;
+
+        if (x != null && x.score == score && val.compareTo(x.val) == 0) {
+            return true;
+        }
+
+        return false;
+    }
+
     private void deleteNode(SkipListNode x, SkipListNode[] update) {
         for (int i = 0; i < level; i++) {
-            if (update[i].levels[i].next == x) {
+            if (update[i].levels[i].forward == x) {
                 update[i].levels[i].span += x.levels[i].span - 1;
-                update[i].levels[i].next = x.levels[i].next;
+                update[i].levels[i].forward = x.levels[i].forward;
             } else {
                 update[i].levels[i].span--;
             }
         }
 
-        if (x.levels[0].next != null) {
-            x.levels[0].next.prev = x.prev;
+        if (x.levels[0].forward != null) {
+            x.levels[0].forward.backward = x.backward;
         } else {
-            tail = x.prev;
+            tail = x.backward;
         }
 
-        while (level > 1 && head.levels[level - 1].next == null) {
+        while (level > 1 && head.levels[level - 1].forward == null) {
             head.levels[level - 1].span = 0;
             level--;
         }
@@ -160,4 +191,11 @@ public class SkipList {
         length--;
     }
 
+    private int randomLevel() {
+        int level = 1;
+        while (Math.random() < P && level < MAX_LEVEL) {
+            level++;
+        }
+        return level;
+    }
 }
